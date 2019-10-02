@@ -29,10 +29,9 @@ import org.janusgraph.diskstorage.util.StaticArrayBuffer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 
 public class BerkeleyJEKeyValueStore implements OrderedKeyValueStore {
 
@@ -69,6 +68,16 @@ public class BerkeleyJEKeyValueStore implements OrderedKeyValueStore {
     private static Transaction getTransaction(StoreTransaction txh) {
         Preconditions.checkArgument(txh!=null);
         return ((BerkeleyJETx) txh).getTransaction();
+    }
+
+    private Cursor openCursor(StoreTransaction txh) throws BackendException {
+        Preconditions.checkArgument(txh!=null);
+        return ((BerkeleyJETx) txh).openCursor(db);
+    }
+
+    private static void closeCursor(StoreTransaction txh, Cursor cursor) {
+        Preconditions.checkArgument(txh!=null);
+        ((BerkeleyJETx) txh).closeCursor(cursor);
     }
 
     @Override
@@ -118,53 +127,65 @@ public class BerkeleyJEKeyValueStore implements OrderedKeyValueStore {
     @Override
     public RecordIterator<KeyValueEntry> getSlice(KVQuery query, StoreTransaction txh) throws BackendException {
         log.trace("beginning db={}, op=getSlice, tx={}", name, txh);
-        final Transaction tx = getTransaction(txh);
         final StaticBuffer keyStart = query.getStart();
         final StaticBuffer keyEnd = query.getEnd();
         final KeySelector selector = query.getKeySelector();
-        final List<KeyValueEntry> result = new ArrayList<>();
         final DatabaseEntry foundKey = keyStart.as(ENTRY_FACTORY);
         final DatabaseEntry foundData = new DatabaseEntry();
-
-        try (final Cursor cursor = db.openCursor(tx, null)) {
-            OperationStatus status = cursor.getSearchKeyRange(foundKey, foundData, getLockMode(txh));
-            //Iterate until given condition is satisfied or end of records
-            while (status == OperationStatus.SUCCESS) {
-                StaticBuffer key = getBuffer(foundKey);
-
-                if (key.compareTo(keyEnd) >= 0)
-                    break;
-
-                if (selector.include(key)) {
-                    result.add(new KeyValueEntry(key, getBuffer(foundData)));
-                }
-
-                if (selector.reachedLimit())
-                    break;
-
-                status = cursor.getNext(foundKey, foundData, getLockMode(txh));
-            }
-        } catch (Exception e) {
-            throw new PermanentBackendException(e);
-        }
-
-        log.trace("db={}, op=getSlice, tx={}, resultcount={}", name, txh, result.size());
+        final Cursor cursor = openCursor(txh);
 
         return new RecordIterator<KeyValueEntry>() {
-            private final Iterator<KeyValueEntry> entries = result.iterator();
+            private OperationStatus status;
+            private KeyValueEntry current;
 
             @Override
             public boolean hasNext() {
-                return entries.hasNext();
+                if (current == null) {
+                    current = getNextEntry();
+                }
+                return current != null;
             }
 
             @Override
             public KeyValueEntry next() {
-                return entries.next();
+                if (!hasNext()) {
+                    throw new NoSuchElementException();
+                }
+                KeyValueEntry next = current;
+                current = null;
+                return next;
+            }
+
+            private KeyValueEntry getNextEntry() {
+                if (status != null && status != OperationStatus.SUCCESS) {
+                    return null;
+                }
+                while (!selector.reachedLimit()) {
+                    if (status == null) {
+                        status = cursor.getSearchKeyRange(foundKey, foundData, getLockMode(txh));
+                    } else {
+                        status = cursor.getNext(foundKey, foundData, getLockMode(txh));
+                    }
+                    if (status != OperationStatus.SUCCESS) {
+                        break;
+                    }
+                    StaticBuffer key = getBuffer(foundKey);
+
+                    if (key.compareTo(keyEnd) >= 0) {
+                        status = OperationStatus.NOTFOUND;
+                        break;
+                    }
+
+                    if (selector.include(key)) {
+                        return new KeyValueEntry(key, getBuffer(foundData));
+                    }
+                }
+                return null;
             }
 
             @Override
             public void close() {
+                closeCursor(txh, cursor);
             }
 
             @Override
@@ -216,7 +237,7 @@ public class BerkeleyJEKeyValueStore implements OrderedKeyValueStore {
         try {
             log.trace("db={}, op=delete, tx={}", name, txh);
             OperationStatus status = db.delete(tx, key.as(ENTRY_FACTORY));
-            if (status != OperationStatus.SUCCESS) {
+            if (status != OperationStatus.SUCCESS && status != OperationStatus.NOTFOUND) {
                 throw new PermanentBackendException("Could not remove: " + status);
             }
         } catch (DatabaseException e) {

@@ -1,5 +1,4 @@
-Building JanusGraph
---------------
+# Building JanusGraph
 
 Required:
 
@@ -35,7 +34,7 @@ To build the distribution archive:
 ```
 mvn clean install -Pjanusgraph-release -Dgpg.skip=true -DskipTests=true
 ```
-This command generates the distribution archive in `janusgraph-dist/janusgraph-dist-hadoop-2/target/janusgraph-$VERSION-hadoop2.zip`.
+This command generates the distribution archive in `janusgraph-dist/target/janusgraph-$VERSION.zip`.
 For more details information, please see [here](janusgraph-dist/README.md#building-zip-archives)
 
 ## Building Docker Image for JanusGraph Server
@@ -45,7 +44,7 @@ distribution archive is needed. If you wish to build an image from source
 refer to `To build the distribution archive` section to build the distribution
 archive first. You can also use an [official release](https://github.com/JanusGraph/janusgraph/releases) to avoid building.
 To do so check out the release tag you wish to build, example: `git checkout v0.2.0`. Then create target
-directory that houses the distribution zip with `mkdir janusgraph-dist/janusgraph-dist-hadoop-2/target`.
+directory that houses the distribution zip with `mkdir janusgraph-dist/target`.
 The [downloaded release](https://github.com/JanusGraph/janusgraph/releases)
 is then placed in the recently created target directory. Note that if the
 tag is not found you can run `git fetch --all --tags --prune` and then rerun the checkout command.
@@ -56,7 +55,7 @@ to run the BerkeleyJE backend and Elasticsearch (requires [Docker Compose](https
 
 ```bash
 mvn docker:build -Pjanusgraph-docker -pl janusgraph-dist
-docker-compose -f janusgraph-dist/janusgraph-dist-hadoop-2/docker-compose.yml up
+docker-compose -f janusgraph-dist/docker-compose.yml up
 ```
 
 If you are building the Docker image behind a proxy please set an environment variable for either http_proxy or https_proxy accordingly.
@@ -101,3 +100,24 @@ To find the Java binary in your environment, run the appropriate command for you
 * Linux/macOS: `which java`
 * Windows: `for %i in (java.exe) do @echo. %~$PATH:i`
 
+## Building documentation
+
+
+### Updating documentation
+You have check in the actual version of configuration reference. Therefore, you have to run following command:
+
+```bash
+mvn --quiet clean install -DskipTests=true -pl janusgraph-doc -am
+```
+
+### Required dependencies to build the documentation
+MkDocs need to be installed to build and serve the documentation locally.
+
+1. Install `python3` and `pip3` (newest version of pip) 
+    * You can also checkout the installation guide of [material-mkdocs](https://squidfunk.github.io/mkdocs-material/getting-started/)
+2. Install requirements using `pip3 install -r requirements.txt`
+
+### Build and serve documentation
+
+1. To create a test build locally use command `mkdocs build`
+2. To serve the documentation locally use command `mkdocs serve`

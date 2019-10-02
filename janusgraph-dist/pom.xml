@@ -3,7 +3,7 @@
     <parent>
         <groupId>org.janusgraph</groupId>
         <artifactId>janusgraph</artifactId>
-        <version>0.4.0-SNAPSHOT</version>
+        <version>0.5.0-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
     <packaging>pom</packaging>
@@ -19,20 +19,13 @@
         <assembly.cfilter.in.dir>${project.basedir}/src/assembly/cfilter</assembly.cfilter.in.dir>
         <assembly.cfilter.out.dir>${project.build.directory}/cfilter</assembly.cfilter.out.dir>
         <assembly.descriptor.dir>${project.basedir}/src/assembly/descriptor</assembly.descriptor.dir>
+        <assembly.static.dir>${project.basedir}/src/assembly/static</assembly.static.dir>
+        <assembly.resources.dir>${project.basedir}/src/assembly/resources</assembly.resources.dir>
         <assembly.es.dir>${project.build.directory}/elasticsearch-${elasticsearch-server.version}</assembly.es.dir>
 
         <!-- Variables for integration testing on release-candidate archive files -->
         <test.expect.dir>${project.build.directory}/test-classes</test.expect.dir>
-        <test.zipfile.path>${project.build.directory}/janusgraph-${project.version}-${hadoop.version.tag}.zip</test.zipfile.path>
-
-        <!-- AsciiDoc -->
-        <asciidoc.input.dir>${project.parent.basedir}/docs</asciidoc.input.dir>
-        <xsl.input.dir>${project.parent.basedir}/docs/xsl</xsl.input.dir>
-        <asciidoc.output.dir>${project.basedir}/target/docs</asciidoc.output.dir>
-        <xsl.output.dir>${asciidoc.output.dir}/xsl</xsl.output.dir>
-        <docbook.output.dir>${project.basedir}/target/docs/docbook</docbook.output.dir>
-        <htmlsingle.output.dir>${project.basedir}/target/docs/single</htmlsingle.output.dir>
-        <htmlchunk.output.dir>${project.basedir}/target/docs/chunk</htmlchunk.output.dir>
+        <test.zipfile.path>${project.build.directory}/janusgraph-${project.version}.zip</test.zipfile.path>
 
         <!-- RPM/DEB packaging -->
         <pkg.release>1</pkg.release>
@@ -40,11 +33,8 @@
 
         <skipDefaultDistroIT>${it.skip}</skipDefaultDistroIT>
         <docker.maven.version>0.4.13</docker.maven.version>
+        <doc.dir>${project.parent.basedir}/docs</doc.dir>
     </properties>
-
-    <modules>
-        <module>janusgraph-dist-hadoop-2</module>
-    </modules>
 
     <dependencies>
         <dependency>
@@ -208,59 +198,6 @@
                         <id>default-testResources</id>
                         <phase>none</phase>
                     </execution>
-                    <execution>
-                        <id>filter-doc-sources-and-xsl</id>
-                        <phase>generate-sources</phase>
-                        <goals>
-                            <goal>copy-resources</goal>
-                        </goals>
-                        <configuration>
-                            <outputDirectory>${asciidoc.output.dir}</outputDirectory>
-                            <delimiters>
-                                <delimiter>$MAVEN{*}</delimiter>
-                            </delimiters>
-                            <resources>
-                                <resource>
-                                    <directory>${asciidoc.input.dir}</directory>
-                                    <filtering>true</filtering>
-                                </resource>
-                            </resources>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>copy-static-assets-to-htmlsingle</id>
-                        <phase>process-resources</phase>
-                        <goals>
-                            <goal>copy-resources</goal>
-                        </goals>
-                        <inherited>false</inherited>
-                        <configuration>
-                            <outputDirectory>${htmlsingle.output.dir}</outputDirectory>
-                            <resources>
-                                <resource>
-                                    <directory>${asciidoc.input.dir}/static</directory>
-                                    <filtering>false</filtering>
-                                </resource>
-                            </resources>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>copy-static-assets-to-htmlchunk</id>
-                        <phase>process-resources</phase>
-                        <goals>
-                            <goal>copy-resources</goal>
-                        </goals>
-                        <inherited>false</inherited>
-                        <configuration>
-                            <outputDirectory>${htmlchunk.output.dir}</outputDirectory>
-                            <resources>
-                                <resource>
-                                    <directory>${asciidoc.input.dir}/static</directory>
-                                    <filtering>false</filtering>
-                                </resource>
-                            </resources>
-                        </configuration>
-                    </execution>
                 </executions>
             </plugin>
 
@@ -279,8 +216,7 @@
                             <mainClass>org.janusgraph.util.system.ConfigurationPrinter</mainClass>
                             <arguments>
                                 <argument>org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.ROOT_NS</argument>
-                                <argument>${asciidoc.output.dir}/listings/janusgraph_cfg.adoc</argument>
-                                <argument>true</argument>
+                                <argument>${doc.dir}/basics/janusgraph-cfg.md</argument>
                             </arguments>
                         </configuration>
                     </execution>
@@ -308,34 +244,6 @@
                     <execution>
                         <id>generate-janusgraph-gremlin-imports</id>
                         <phase>none</phase>
-                    </execution>
-                </executions>
-            </plugin>
-
-            <plugin>
-                <groupId>org.asciidoctor</groupId>
-                <artifactId>asciidoctor-maven-plugin</artifactId>
-                <inherited>false</inherited>
-                <executions>
-                    <execution>
-                        <id>asciidoc-to-docbook</id>
-                        <phase>generate-resources</phase>
-                        <goals>
-                            <goal>process-asciidoc</goal>
-                        </goals>
-                        <configuration>
-                            <sourceDirectory>${asciidoc.output.dir}</sourceDirectory>
-                            <sourceDocumentName>index.adoc</sourceDocumentName>
-                            <outputDirectory>${docbook.output.dir}</outputDirectory>
-                            <backend>docbook5</backend>
-                            <doctype>book</doctype>
-                            <attributes>
-                                <encoding>UTF-8</encoding>
-                                <iconsdir>images/icons</iconsdir>
-                                <imagesdir>images</imagesdir>
-                                <toc>true</toc>
-                            </attributes>
-                        </configuration>
                     </execution>
                 </executions>
             </plugin>
@@ -380,76 +288,6 @@
                 </executions>
             </plugin>
 
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>xml-maven-plugin</artifactId>
-                <inherited>false</inherited>
-                <executions>
-                    <execution>
-                        <id>docbook-to-htmlsingle</id>
-                        <phase>process-resources</phase>
-                        <goals>
-                            <goal>transform</goal>
-                        </goals>
-                        <inherited>false</inherited>
-                        <configuration>
-                            <forceCreation>true</forceCreation>
-                            <transformationSets>
-                                <transformationSet>
-                                    <dir>${docbook.output.dir}</dir>
-                                    <outputDir>${htmlsingle.output.dir}</outputDir>
-                                    <includes>
-                                        <include>index.xml</include>
-                                    </includes>
-                                    <stylesheet>${xsl.output.dir}/single.xsl</stylesheet>
-                                    <fileMappers>
-                                        <fileMapper implementation="org.codehaus.plexus.components.io.filemappers.FileExtensionMapper">
-                                            <targetExtension>.html</targetExtension>
-                                        </fileMapper>
-                                    </fileMappers>
-                                </transformationSet>
-                            </transformationSets>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>docbook-to-htmlchunk</id>
-                        <phase>process-resources</phase>
-                        <goals>
-                            <goal>transform</goal>
-                        </goals>
-                        <inherited>false</inherited>
-                        <configuration>
-                            <forceCreation>true</forceCreation>
-                            <transformationSets>
-                                <transformationSet>
-                                    <dir>${docbook.output.dir}</dir>
-                                    <includes>
-                                        <include>index.xml</include>
-                                    </includes>
-                                    <stylesheet>${xsl.output.dir}/chunk.xsl</stylesheet>
-                                    <fileMappers>
-                                        <fileMapper implementation="org.codehaus.plexus.components.io.filemappers.FileExtensionMapper">
-                                            <targetExtension>.html</targetExtension>
-                                        </fileMapper>
-                                    </fileMappers>
-                                </transformationSet>
-                            </transformationSets>
-                        </configuration>
-                    </execution>
-                </executions>
-                <dependencies>
-                    <dependency>
-                        <groupId>net.sf.xslthl</groupId>
-                        <artifactId>xslthl</artifactId>
-                        <version>2.1.0</version>
-                    </dependency>
-                    <dependency>
-                        <groupId>saxon</groupId>
-                        <artifactId>saxon</artifactId>
-                        <version>6.5.3</version>
-                    </dependency>
-                </dependencies>
-            </plugin>
 
             <plugin>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -555,9 +393,9 @@
                             <artifactId>docker-maven-plugin</artifactId>
                             <version>${docker.maven.version}</version>
                             <configuration>
-                                <dockerDirectory>${project.basedir}/janusgraph-dist-hadoop-2</dockerDirectory>
+                                <dockerDirectory>${project.basedir}</dockerDirectory>
                                 <buildArgs>
-                                    <server_zip>target/janusgraph-${project.version}-hadoop2.zip</server_zip>
+                                    <server_zip>target/janusgraph-${project.version}.zip</server_zip>
                                     <http_proxy>${env.http_proxy}</http_proxy>
                                     <https_proxy>${env.https_proxy}</https_proxy>
                                 </buildArgs>
@@ -586,59 +424,7 @@
             </dependencies>
 
             <build>
-
-                <pluginManagement>
-                    <plugins>
-                        <plugin>
-                            <artifactId>maven-assembly-plugin</artifactId>
-                            <executions>
-                                <execution>
-                                    <id>assemble-distribution-archive</id>
-                                    <phase>package</phase>
-                                    <goals>
-                                        <goal>single</goal>
-                                    </goals>
-                                    <configuration>
-                                        <!--
-                                            We set attached=true so that the gpg plugin will
-                                            sign all of our assembly artifacts. We handle
-                                            deployment of the artifacts manually because
-                                            maven-deploy-plugin can't upload files to a flat
-                                            S3 directory; it insists on creating a
-                                            long/packagename/and/artifactid/and/version/
-                                            path at the destination before uploading, and we
-                                            don't want that for our files S3. codehaus's
-                                            wagon:upload plugin comes to our rescue.
-                                        -->
-                                        <attach>true</attach>
-                                        <!--
-                                            archive filenames are of the form
-                                            ${finalName}-${<id /> from assembly descriptor}.${archive
-                                            format extension}
-                                        -->
-                                        <finalName>janusgraph-${project.version}-${hadoop.version.tag}</finalName>
-                                        <appendAssemblyId>false</appendAssemblyId>
-                                        <tarLongFileMode>gnu</tarLongFileMode>
-                                        <descriptors>
-                                            <descriptor>${assembly.descriptor.dir}/archive.xml</descriptor>
-                                        </descriptors>
-                                        <formats>
-                                            <format>zip</format>
-                                        </formats>
-                                    </configuration>
-                                </execution>
-                            </executions>
-                        </plugin>
-
-                        <plugin>
-                            <artifactId>maven-gpg-plugin</artifactId>
-                            <executions>
-                                <execution>
-                                    <id>sign-artifacts</id>
-                                </execution>
-                            </executions>
-                        </plugin>
-
+                <plugins>
                         <plugin>
                             <artifactId>maven-jar-plugin</artifactId>
                             <executions>
@@ -668,9 +454,29 @@
                         <plugin>
                             <artifactId>maven-resources-plugin</artifactId>
                             <executions>
+                            <execution>
+                                <id>filter-release-resources</id>
+                                <phase>process-resources</phase>
+                                <goals>
+                                    <goal>copy-resources</goal>
+                                </goals>
+                                <configuration>
+                                    <outputDirectory>${project.build.directory}/release</outputDirectory>
+                                    <useDefaultDelimiters>false</useDefaultDelimiters>
+                                    <delimiters>
+                                        <delimiter>$MAVEN{*}</delimiter>
+                                    </delimiters>
+                                    <resources>
+                                        <resource>
+                                            <directory>src/release</directory>
+                                            <filtering>true</filtering>
+                                        </resource>
+                                    </resources>
+                                </configuration>
+                            </execution>
                                 <execution>
                                     <id>filter-cassandra-murmur-config</id>
-                                    <phase>none</phase>
+                                    <phase>process-test-resources</phase>
                                     <goals>
                                         <goal>copy-resources</goal>
                                     </goals>
@@ -689,7 +495,7 @@
                                 </execution>
                                 <execution>
                                     <id>filter-cassandra-bop-config</id>
-                                    <phase>none</phase>
+                                    <phase>process-test-resources</phase>
                                     <goals>
                                         <goal>copy-resources</goal>
                                     </goals>
@@ -708,7 +514,7 @@
                                 </execution>
                                 <execution>
                                     <id>filter-expect-scripts</id>
-                                    <phase>none</phase>
+                                    <phase>process-test-resources</phase>
                                     <goals>
                                         <goal>copy-resources</goal>
                                     </goals>
@@ -724,7 +530,7 @@
                                 </execution>
                                 <execution>
                                     <id>filter-test-resources</id>
-                                    <phase>none</phase>
+                                    <phase>process-test-resources</phase>
                                     <goals>
                                         <goal>copy-resources</goal>
                                     </goals>
@@ -740,7 +546,7 @@
                                 </execution>
                                 <execution>
                                     <id>copy-test-cfiles</id>
-                                    <phase>none</phase>
+                                    <phase>process-test-resources</phase>
                                     <goals>
                                         <goal>copy-resources</goal>
                                     </goals>
@@ -754,6 +560,25 @@
                                         <outputDirectory>${project.build.directory}</outputDirectory>
                                     </configuration>
                                 </execution>
+                            <execution>
+                                <id>copy-compat-test-config</id>
+                                <phase>process-resources</phase>
+                                <goals>
+                                    <goal>copy-resources</goal>
+                                </goals>
+                                <configuration>
+                                    <outputDirectory>${project.build.directory}/conf</outputDirectory>
+                                    <resources>
+                                        <resource>
+                                            <directory>${project.parent.basedir}/src/assembly/static/conf</directory>
+                                            <includes>
+                                                <include>*.properties</include>
+                                            </includes>
+                                            <filtering>false</filtering>
+                                        </resource>
+                                    </resources>
+                                </configuration>
+                            </execution>
                             </executions>
                         </plugin>
 
@@ -772,7 +597,6 @@
                                         <goal>integration-test</goal>
                                     </goals>
                                     <configuration>
-                                        <excludedGroups>ORDERED_KEY_STORE_TESTS,UNORDERED_KEY_STORE_TESTS</excludedGroups>
                                         <skip>${skipDefaultDistroIT}</skip>
                                         <failIfNoTests>false</failIfNoTests>
                                         <excludes>
@@ -790,7 +614,6 @@
                                     </goals>
                                     <configuration>
                                         <argLine>-Dtest.cassandra.confdir=${project.build.directory}/cassandra/conf/localhost-murmur -Dtest.cassandra.datadir=${project.build.directory}/cassandra/data/localhost-murmur</argLine>
-                                        <excludedGroups>ORDERED_KEY_STORE_TESTS</excludedGroups>
                                         <reportNameSuffix>murmur</reportNameSuffix>
                                         <failIfNoTests>false</failIfNoTests>
                                         <includes>
@@ -806,7 +629,6 @@
                                     </goals>
                                     <configuration>
                                         <argLine>-Dtest.cassandra.confdir=${project.build.directory}/cassandra/conf/localhost-bop -Dtest.cassandra.datadir=${project.build.directory}/cassandra/data/localhost-bop</argLine>
-                                        <excludedGroups>UNORDERED_KEY_STORE_TESTS</excludedGroups>
                                         <reportNameSuffix>bop</reportNameSuffix>
                                         <failIfNoTests>false</failIfNoTests>
                                         <includes>
@@ -858,36 +680,6 @@
                                 </execution>
                             </executions>
                         </plugin>
-                    </plugins>
-                </pluginManagement>
-
-                <plugins>
-                    <plugin>
-                        <artifactId>maven-resources-plugin</artifactId>
-                        <inherited>false</inherited>
-                        <executions>
-                            <execution>
-                                <id>filter-release-resources</id>
-                                <phase>process-resources</phase>
-                                <goals>
-                                    <goal>copy-resources</goal>
-                                </goals>
-                                <configuration>
-                                    <outputDirectory>${project.build.directory}/release</outputDirectory>
-                                    <useDefaultDelimiters>false</useDefaultDelimiters>
-                                    <delimiters>
-                                        <delimiter>$MAVEN{*}</delimiter>
-                                    </delimiters>
-                                    <resources>
-                                        <resource>
-                                            <directory>src/release</directory>
-                                            <filtering>true</filtering>
-                                        </resource>
-                                    </resources>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
 
                     <!--
                         We use maven-resources-plugin to filter src/release,
@@ -920,11 +712,44 @@
                             </execution>
                         </executions>
                     </plugin>
-
                     <plugin>
                         <artifactId>maven-assembly-plugin</artifactId>
-                        <inherited>false</inherited>
                         <executions>
+                            <execution>
+                                <id>assemble-distribution-archive</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>single</goal>
+                                </goals>
+                                <configuration>
+                                    <!--
+                                        We set attached=true so that the gpg plugin will
+                                        sign all of our assembly artifacts. We handle
+                                        deployment of the artifacts manually because
+                                        maven-deploy-plugin can't upload files to a flat
+                                        S3 directory; it insists on creating a
+                                        long/packagename/and/artifactid/and/version/
+                                        path at the destination before uploading, and we
+                                        don't want that for our files S3. codehaus's
+                                        wagon:upload plugin comes to our rescue.
+                                    -->
+                                    <attach>true</attach>
+                                    <!--
+                                        archive filenames are of the form
+                                        ${finalName}-${<id /> from assembly descriptor}.${archive
+                                        format extension}
+                                    -->
+                                    <finalName>janusgraph-${project.version}</finalName>
+                                    <appendAssemblyId>false</appendAssemblyId>
+                                    <tarLongFileMode>gnu</tarLongFileMode>
+                                    <descriptors>
+                                        <descriptor>${assembly.descriptor.dir}/archive.xml</descriptor>
+                                    </descriptors>
+                                    <formats>
+                                        <format>zip</format>
+                                    </formats>
+                                </configuration>
+                            </execution>
                             <execution>
                                 <id>unpack-janusgraph-core-javadocs</id>
                                 <phase>package</phase>
@@ -940,13 +765,9 @@
                                     </descriptors>
                                 </configuration>
                             </execution>
-
-                            <execution>
-                                <id>assemble-distribution-archive</id>
-                                <phase>none</phase>
-                            </execution>
                         </executions>
                     </plugin>
+
 
                     <!-- gpg must follow assembly.
                          Both plugins run in the package phase, so only <plugin> ordering
@@ -954,6 +775,11 @@
                          Hence this vacuous stanza down here. -->
                     <plugin>
                         <artifactId>maven-gpg-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                            </execution>
+                        </executions>
                     </plugin>
                 </plugins>
             </build>

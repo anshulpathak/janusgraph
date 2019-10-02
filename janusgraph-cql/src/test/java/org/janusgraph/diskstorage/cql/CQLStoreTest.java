@@ -15,35 +15,37 @@
 package org.janusgraph.diskstorage.cql;
 
 import com.datastax.driver.core.*;
-import org.janusgraph.TestCategory;
+import org.janusgraph.JanusGraphCassandraContainer;
 import org.janusgraph.diskstorage.BackendException;
 import org.janusgraph.diskstorage.KeyColumnValueStoreTest;
 import org.janusgraph.diskstorage.configuration.Configuration;
 import org.janusgraph.diskstorage.configuration.ModifiableConfiguration;
 import org.janusgraph.diskstorage.keycolumnvalue.StoreFeatures;
 import org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Tag;
+import org.janusgraph.testutil.FeatureFlag;
+import org.janusgraph.testutil.JanusGraphFeature;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.janusgraph.diskstorage.cql.CQLConfigOptions.*;
-import static org.janusgraph.diskstorage.cql.CassandraStorageSetup.getCQLConfiguration;
-import static org.janusgraph.diskstorage.cql.CassandraStorageSetup.startCleanEmbedded;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@Testcontainers
 public class CQLStoreTest extends KeyColumnValueStoreTest {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(CQLStoreTest.class);
@@ -52,16 +54,14 @@ public class CQLStoreTest extends KeyColumnValueStoreTest {
     private static final String DEFAULT_COMPRESSOR_PACKAGE = "org.apache.cassandra.io.compress";
     private static final String TEST_KEYSPACE_NAME = "test_keyspace";
 
+    @Container
+    public static final JanusGraphCassandraContainer cqlContainer = new JanusGraphCassandraContainer();
+
     public CQLStoreTest() throws BackendException {
     }
 
-    @BeforeAll
-    public static void startCassandra() {
-        startCleanEmbedded();
-    }
-
     protected ModifiableConfiguration getBaseStorageConfiguration() {
-        return getCQLConfiguration(getClass().getSimpleName());
+        return cqlContainer.getConfiguration(getClass().getSimpleName());
     }
 
     private CQLStoreManager openStorageManager(final Configuration c) throws BackendException {
@@ -74,36 +74,25 @@ public class CQLStoreTest extends KeyColumnValueStoreTest {
     }
 
     @Test
-    @Tag(TestCategory.UNORDERED_KEY_STORE_TESTS)
+    @FeatureFlag(feature = JanusGraphFeature.UnorderedScan)
     public void testUnorderedConfiguration(TestInfo testInfo) {
-        if (!this.manager.getFeatures().hasUnorderedScan()) {
-            LOGGER.warn(
-                "Can't test key-unordered features on incompatible store.  "
-                    + "This warning could indicate reduced test coverage and "
-                    + "a broken JUnit configuration.  Skipping test {}.",
-                testInfo.getDisplayName());
-            return;
-        }
-
         final StoreFeatures features = this.manager.getFeatures();
         assertFalse(features.isKeyOrdered());
         assertFalse(features.hasLocalKeyPartition());
     }
 
     @Test
-    @Tag(TestCategory.ORDERED_KEY_STORE_TESTS)
+    @FeatureFlag(feature = JanusGraphFeature.OrderedScan)
     public void testOrderedConfiguration(TestInfo testInfo) {
-        if (!this.manager.getFeatures().hasOrderedScan()) {
-            LOGGER.warn(
-                "Can't test key-ordered features on incompatible store.  "
-                    + "This warning could indicate reduced test coverage and "
-                    + "a broken JUnit configuration.  Skipping test {}.",
-                testInfo.getDisplayName());
-            return;
-        }
-
         final StoreFeatures features = this.manager.getFeatures();
         assertTrue(features.isKeyOrdered());
+    }
+
+    @Test
+    public void testExternalLocking() throws BackendException {
+        assertFalse(this.manager.getFeatures().hasLocking());
+        assertTrue(openStorageManager(getBaseStorageConfiguration()
+                .set(USE_EXTERNAL_LOCKING, true)).getFeatures().hasLocking());
     }
 
     @Test
@@ -119,6 +108,7 @@ public class CQLStoreTest extends KeyColumnValueStoreTest {
     }
 
     @Test
+    @EnabledIf("org.janusgraph.JanusGraphCassandraContainer.isCompactStorageSupported()")
     public void testUseCompactStorage() throws BackendException {
         final String cf = TEST_CF_NAME + "_usecompact";
         final ModifiableConfiguration config = getBaseStorageConfiguration();

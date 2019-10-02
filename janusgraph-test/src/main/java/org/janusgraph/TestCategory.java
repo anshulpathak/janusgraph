@@ -17,9 +17,6 @@ package org.janusgraph;
 public final class TestCategory {
     public static final String BRITTLE_TESTS = "BRITTLE_TESTS";
     public static final String SERIAL_TESTS = "SERIAL_TESTS";
-    public static final String ORDERED_KEY_STORE_TESTS = "ORDERED_KEY_STORE_TESTS";
-    public static final String UNORDERED_KEY_STORE_TESTS = "UNORDERED_KEY_STORE_TESTS";
     public static final String MEMORY_TESTS = "MEMORY_TESTS";
     public static final String PERFORMANCE_TESTS = "PERFORMANCE_TESTS";
-    public static final String CELL_TTL_TESTS = "CELL_TTL_TESTS";
 }

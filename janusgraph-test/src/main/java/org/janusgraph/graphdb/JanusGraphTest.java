@@ -99,6 +99,8 @@ import org.janusgraph.graphdb.types.StandardEdgeLabelMaker;
 import org.janusgraph.graphdb.types.StandardPropertyKeyMaker;
 import org.janusgraph.graphdb.types.system.BaseVertexLabel;
 import org.janusgraph.graphdb.types.system.ImplicitKey;
+import org.janusgraph.testutil.JanusGraphFeature;
+import org.janusgraph.testutil.FeatureFlag;
 import org.janusgraph.testutil.TestGraphConfigs;
 
 import org.apache.tinkerpop.gremlin.process.traversal.P;
@@ -1914,8 +1916,8 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
     public void testArrayEqualityUsingImplicitKey() {
         JanusGraphVertex v = graph.addVertex();
 
-        byte singleDimension[] = new byte[]{127, 0, 0, 1};
-        byte singleDimensionCopy[] = new byte[]{127, 0, 0, 1};
+        byte[] singleDimension = new byte[]{127, 0, 0, 1};
+        byte[] singleDimensionCopy = new byte[]{127, 0, 0, 1};
         final String singlePropName = "single";
 
         v.property(singlePropName, singleDimension);
@@ -2528,7 +2530,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
          === check cross transaction
          */
         final Random random = new Random();
-        final long vertexIds[] = {getId(v1), getId(v2), getId(v3)};
+        final long[] vertexIds = {getId(v1), getId(v2), getId(v3)};
         //1) Index uniqueness
         executeLockConflictingTransactionJobs(graph, new TransactionJob() {
             private int pos = 0;
@@ -3154,7 +3156,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
 
         final int numV = 100;
         JanusGraphVertex v = tx.addVertex();
-        JanusGraphVertex ns[] = new JanusGraphVertex[numV];
+        JanusGraphVertex[] ns = new JanusGraphVertex[numV];
 
         for (int i = 0; i < numV; i++) {
             double w = (i * 0.5) % 5;
@@ -3858,6 +3860,31 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
         assertCount(numEdges - 1, parentVertex.query().direction(Direction.OUT).edges());
     }
 
+    @Test
+    public void testRemoveCachedVertexVisibility() {
+        // add vertices to hit limit of tx-cache-size
+        int cacheSize = graph.getConfiguration().getTxVertexCacheSize();
+        List<Long> vertexIds = new ArrayList<>();
+        for (int i = 0 ; i < cacheSize; i++) {
+            JanusGraphVertex vertex = graph.addVertex();
+            vertexIds.add(vertex.longId());
+        }
+
+        // add one more vertex that will be evicted from tx cache on read
+        long vertexIdToBeDeleted = graph.addVertex().longId();
+        graph.tx().commit();
+
+        // retrieve the vertex and delete it
+        Vertex retrievedVertex = graph.traversal().V(vertexIdToBeDeleted).next();
+        retrievedVertex.remove();
+
+        // force evict from tx cache by reading all the other vertices
+        graph.traversal().V(vertexIds).toStream().collect(Collectors.toList());
+
+        // re-read the deleted vertex and check it no longer exists
+        assertFalse(graph.traversal().V(vertexIdToBeDeleted).hasNext());
+    }
+
 
     @Test
     public void testTinkerPopCardinality() {
@@ -4155,7 +4182,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
         tx.addProperties(knows, weight);
         newTx();
 
-        final Instant txTimes[] = new Instant[4];
+        final Instant[] txTimes = new Instant[4];
         //Transaction with custom user log name
         txTimes[0] = times.getTime();
         JanusGraphTransaction tx2 = graph.buildTransaction().logIdentifier(userLogName).start();
@@ -4583,7 +4610,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
 
         final int numV = 100;
         final boolean sorted = true;
-        JanusGraphVertex ns[] = new JanusGraphVertex[numV];
+        JanusGraphVertex[] ns = new JanusGraphVertex[numV];
         String[] strings = {"aaa", "bbb", "ccc", "ddd"};
 
         for (int i = 0; i < numV; i++) {
@@ -5289,7 +5316,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
      ==================================================================================*/
 
     @Test
-    @Tag(TestCategory.CELL_TTL_TESTS)
+    @FeatureFlag(feature = JanusGraphFeature.CellTtl)
     public void testEdgeTTLTiming() throws Exception {
         EdgeLabel label1 = mgmt.makeEdgeLabel("likes").make();
         int ttl1 = 1;
@@ -5340,7 +5367,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
     }
 
     @Test
-    @Tag(TestCategory.CELL_TTL_TESTS)
+    @FeatureFlag(feature = JanusGraphFeature.CellTtl)
     public void testEdgeTTLWithTransactions() throws Exception {
         EdgeLabel label1 = mgmt.makeEdgeLabel("likes").make();
         mgmt.setTTL(label1, Duration.ofSeconds(1));
@@ -5376,7 +5403,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
 
     @Test
     @Tag(TestCategory.BRITTLE_TESTS)
-    @Tag(TestCategory.CELL_TTL_TESTS)
+    @FeatureFlag(feature = JanusGraphFeature.CellTtl)
     public void testEdgeTTLWithIndex() throws Exception {
         int ttl = 1; // artificially low TTL for test
         final PropertyKey time = mgmt.makePropertyKey("time").dataType(Integer.class).make();
@@ -5412,7 +5439,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
 
     @Test
     @Tag(TestCategory.BRITTLE_TESTS)
-    @Tag(TestCategory.CELL_TTL_TESTS)
+    @FeatureFlag(feature = JanusGraphFeature.CellTtl)
     public void testPropertyTTLTiming() throws Exception {
         PropertyKey name = mgmt.makePropertyKey("name").dataType(String.class).make();
         PropertyKey place = mgmt.makePropertyKey("place").dataType(String.class).make();
@@ -5459,7 +5486,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
     }
 
     @Test
-    @Tag(TestCategory.CELL_TTL_TESTS)
+    @FeatureFlag(feature = JanusGraphFeature.CellTtl)
     public void testVertexTTLWithCompositeIndex() throws Exception {
         PropertyKey name = mgmt.makePropertyKey("name").dataType(String.class).make();
         PropertyKey time = mgmt.makePropertyKey("time").dataType(Long.class).make();
@@ -5492,7 +5519,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
 
     @Test
     @Tag(TestCategory.BRITTLE_TESTS)
-    @Tag(TestCategory.CELL_TTL_TESTS)
+    @FeatureFlag(feature = JanusGraphFeature.CellTtl)
     public void testEdgeTTLLimitedByVertexTTL() throws Exception {
         Boolean dbCache = config.get("cache.db-cache", Boolean.class);
         if (null == dbCache) {
@@ -5589,7 +5616,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
     }
 
     @Test
-    @Tag(TestCategory.CELL_TTL_TESTS)
+    @FeatureFlag(feature = JanusGraphFeature.CellTtl)
     public void testSettingTTLOnUnsupportedType() {
         assertThrows(IllegalArgumentException.class, () -> {
             JanusGraphSchemaType type = ImplicitKey.ID;
@@ -5598,7 +5625,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
     }
 
     @Test
-    @Tag(TestCategory.CELL_TTL_TESTS)
+    @FeatureFlag(feature = JanusGraphFeature.CellTtl)
     public void testUnsettingTTL() throws InterruptedException {
         int initialTTLMillis = 2000;
 
@@ -5647,7 +5674,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
     }
 
     @Test
-    @Tag(TestCategory.CELL_TTL_TESTS)
+    @FeatureFlag(feature = JanusGraphFeature.CellTtl)
     public void testGettingUndefinedEdgeLabelTTL() {
         // getTTL should return a null duration on an extant type without a TTL
         mgmt.makeEdgeLabel("likes").make();
@@ -5661,7 +5688,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
     }
 
     @Test
-    @Tag(TestCategory.CELL_TTL_TESTS)
+    @FeatureFlag(feature = JanusGraphFeature.CellTtl)
     public void testGettingUndefinedVertexLabelTTL() {
         // getTTL should return a null duration on an extant type without a TTL
         mgmt.makeVertexLabel("foo").make();
@@ -5675,7 +5702,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
     }
 
     @Test
-    @Tag(TestCategory.CELL_TTL_TESTS)
+    @FeatureFlag(feature = JanusGraphFeature.CellTtl)
     public void testGetTTLFromUnsupportedType() {
         assertThrows(IllegalArgumentException.class, () -> {
             JanusGraphSchemaType type = ImplicitKey.ID;
@@ -5684,7 +5711,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
     }
 
     @Test
-    @Tag(TestCategory.CELL_TTL_TESTS)
+    @FeatureFlag(feature = JanusGraphFeature.CellTtl)
     public void testSettingTTLOnNonStaticVertexLabel() {
         assertThrows(IllegalArgumentException.class, () -> {
             VertexLabel label1 = mgmt.makeVertexLabel("event").make();
@@ -5693,7 +5720,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
     }
 
     @Test
-    @Tag(TestCategory.CELL_TTL_TESTS)
+    @FeatureFlag(feature = JanusGraphFeature.CellTtl)
     public void testEdgeTTLImplicitKey() throws Exception {
         Duration d;
 
@@ -5737,7 +5764,7 @@ public abstract class JanusGraphTest extends JanusGraphBaseTest {
     }
 
     @Test
-    @Tag(TestCategory.CELL_TTL_TESTS)
+    @FeatureFlag(feature = JanusGraphFeature.CellTtl)
     public void testVertexTTLImplicitKey() throws Exception {
         Duration d;
 

@@ -6,8 +6,20 @@ To make the process smooth for the project *committers* (those who review and ac
 
 ## Sign the CLA
 
-To sign the JanusGraph CLA, please follow [the
-instructions in `janusgraph/legal`](https://github.com/JanusGraph/legal).
+Before you can contribute to JanusGraph, please sign the Contributor License
+Agreement (CLA). This is not a copyright *assignment*, it simply gives the
+JanusGraph project the permission and license to use and redistribute your
+contributions as part of the project.
+
+* If you are an individual writing original source code and you're sure you own
+  the intellectual property, you will need to follow 
+  [individual contributor instructions](https://github.com/swinslow/cla-tool-docs/blob/master/walkthroughs/1-Individual-Contributor.md).
+
+* If you work for a company or another organization that may have claim to
+  intellectual property you may produce, and the organization wants to allow you
+  to contribute your work, then an authorized representative of the organization
+  will need to follow [CLA manager instructions](https://github.com/swinslow/cla-tool-docs/blob/master/walkthroughs/4-CLA-Manager.md). 
+  While the contributors should follow [corporate contributor instructions](https://github.com/swinslow/cla-tool-docs/blob/master/walkthroughs/3-Corporate-Contributor-first-for-company.md).
 
 ## Fork the repository on GitHub
 
@@ -75,11 +87,11 @@ $ git config user.email "my-email@example.com"
 
 ## Create a new branch
 
-First, you need to decide which release branch (e.g., `master`, `0.2`) to
+First, you need to decide which release branch (e.g., `master`, `v0.2`) to
 create the feature branch from. If you intend to add a new feature, then
 `master` is the right branch. Bug fixes however should also be applied to
 other releases, so you should create your feature branch from the release
-branch with the lowest version number that is still active (e.g., `0.2`).
+branch with the lowest version number that is still active (e.g., `v0.2`).
 When in doubt, ask on [janusgraph-dev](https://groups.google.com/forum/#!forum/janusgraph-dev).
 Changes to all release branches will also be merged into `master`.
 
@@ -96,12 +108,26 @@ $ git checkout -b my-new-feature
 ```
 
 > NOTE: This listing assumes that you create the feature branch from `master`.
-> Replace `master` by the name of the release branch (e.g., `0.2`) if you want
+> Replace `master` by the name of the release branch (e.g., `v0.2`) if you want
 > to create the branch from that release branch instead.
 
 ## Develop and test your changes
 
 Make that feature or bugfix awesome!
+
+## Configuration changes
+
+If you add any configuration or change any configuration, 
+you have to update `docs/basics/janusgraph-cfg.md`. 
+
+To update config reference use following command:
+
+```
+mvn --quiet clean install -DskipTests=true -pl janusgraph-doc -am
+```
+
+Our release branches should always contain the correct configuration documentation,
+that is enforced by our build pipeline.
 
 ## Commit changes and sign the Developer Certificate of Origin
 
@@ -143,7 +169,7 @@ you've signed the contribution.
 > `git ci -v` will get you a diff of your commit while writing your commit
 > message.
 
-> Note: If this is a non-code change, e.g. documentation, add `[skip ci]` to the
+> Note: If this is a non-code change, e.g. documentation, add `[doc only]` to the
 > PR subject line. This is to save CPU time on Travis CI, which lets us get more
 > build time for the other changes which actually change the code.
 >
@@ -152,7 +178,7 @@ you've signed the contribution.
 > * when the PR is submitted for review
 > * when the PR is merged to the base branch
 >
-> Having [skip ci] in the commit skips the first one, but the merge commit also
+> Having [doc only] in the commit skips the first one, but the merge commit also
 > needs it, so having it in the title (first line of commit) helps it easily
 > propagate to both places.
 
@@ -179,13 +205,11 @@ Review the [PR check list](.github/PULL_REQUEST_TEMPLATE.md) for criteria for ac
 
 ## Code review
 
-If you have signed the CLA, and it was processed and acknowledged on the email
-thread, you should get a `[cla: yes]` label added to your PR by our bot,
-@janusgraph-bot, during the course of the review.
+If you have signed the CLA, you should pass `EasyCLA` status check.
 
-If you see a `[cla: no]` label attached, there will be an explanation of what
-went wrong, but generally, you should make sure that your CLA and your name,
-email, and GitHub usernames all match, for all of the commits in your PR.
+If you see that CLA check isn't passed, there will be a comment from `EasyCLA` with the link 
+to sign a CLA. Make sure that your CLA and your name, email, and GitHub usernames all match, 
+for all of the commits in your PR.
 
-If you are still not sure what's wrong, reach out to
+If you are not sure what's wrong, reach out to
 janusgraph-cla@googlegroups.com with further questions.
