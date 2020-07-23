@@ -21,28 +21,7 @@ import static com.datastax.driver.core.querybuilder.QueryBuilder.truncate;
 import static io.vavr.API.$;
 import static io.vavr.API.Case;
 import static io.vavr.API.Match;
-import static org.janusgraph.diskstorage.cql.CQLConfigOptions.ATOMIC_BATCH_MUTATE;
-import static org.janusgraph.diskstorage.cql.CQLConfigOptions.BATCH_STATEMENT_SIZE;
-import static org.janusgraph.diskstorage.cql.CQLConfigOptions.CLUSTER_NAME;
-import static org.janusgraph.diskstorage.cql.CQLConfigOptions.ONLY_USE_LOCAL_CONSISTENCY_FOR_SYSTEM_OPERATIONS;
-import static org.janusgraph.diskstorage.cql.CQLConfigOptions.KEYSPACE;
-import static org.janusgraph.diskstorage.cql.CQLConfigOptions.LOCAL_CORE_CONNECTIONS_PER_HOST;
-import static org.janusgraph.diskstorage.cql.CQLConfigOptions.LOCAL_DATACENTER;
-import static org.janusgraph.diskstorage.cql.CQLConfigOptions.LOCAL_MAX_CONNECTIONS_PER_HOST;
-import static org.janusgraph.diskstorage.cql.CQLConfigOptions.LOCAL_MAX_REQUESTS_PER_CONNECTION;
-import static org.janusgraph.diskstorage.cql.CQLConfigOptions.PROTOCOL_VERSION;
-import static org.janusgraph.diskstorage.cql.CQLConfigOptions.READ_CONSISTENCY;
-import static org.janusgraph.diskstorage.cql.CQLConfigOptions.REMOTE_CORE_CONNECTIONS_PER_HOST;
-import static org.janusgraph.diskstorage.cql.CQLConfigOptions.REMOTE_MAX_CONNECTIONS_PER_HOST;
-import static org.janusgraph.diskstorage.cql.CQLConfigOptions.REMOTE_MAX_REQUESTS_PER_CONNECTION;
-import static org.janusgraph.diskstorage.cql.CQLConfigOptions.REPLICATION_FACTOR;
-import static org.janusgraph.diskstorage.cql.CQLConfigOptions.REPLICATION_OPTIONS;
-import static org.janusgraph.diskstorage.cql.CQLConfigOptions.REPLICATION_STRATEGY;
-import static org.janusgraph.diskstorage.cql.CQLConfigOptions.SSL_ENABLED;
-import static org.janusgraph.diskstorage.cql.CQLConfigOptions.SSL_TRUSTSTORE_LOCATION;
-import static org.janusgraph.diskstorage.cql.CQLConfigOptions.SSL_TRUSTSTORE_PASSWORD;
-import static org.janusgraph.diskstorage.cql.CQLConfigOptions.WRITE_CONSISTENCY;
-import static org.janusgraph.diskstorage.cql.CQLConfigOptions.USE_EXTERNAL_LOCKING;
+import static org.janusgraph.diskstorage.cql.CQLConfigOptions.*;
 import static org.janusgraph.diskstorage.cql.CQLKeyColumnValueStore.EXCEPTION_MAPPER;
 import static org.janusgraph.diskstorage.cql.CQLTransaction.getTransaction;
 import static org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration.AUTH_PASSWORD;
@@ -61,6 +40,7 @@ import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -90,6 +70,7 @@ import org.janusgraph.diskstorage.keycolumnvalue.KeyRange;
 import org.janusgraph.diskstorage.keycolumnvalue.StandardStoreFeatures;
 import org.janusgraph.diskstorage.keycolumnvalue.StoreFeatures;
 import org.janusgraph.diskstorage.keycolumnvalue.StoreTransaction;
+import org.janusgraph.graphdb.configuration.GraphDatabaseConfiguration;
 import org.janusgraph.util.system.NetworkUtil;
 
 import com.datastax.driver.core.BatchStatement;
@@ -119,6 +100,14 @@ import io.vavr.collection.Iterator;
 import io.vavr.collection.Seq;
 import io.vavr.concurrent.Future;
 import io.vavr.control.Option;
+import mme.cassandraclient.CassandraCluster;
+import mme.cassandraclient.CasseroleOptions;
+import mme.cassandraclient.CasserolePolicy;
+import mme.cassandraclient.LocalContactPointsLocator;
+import mme.cassandraclient.casserole.ConfigChangeListener;
+import mme.cassandraclient.casserole.ConfigProvider;
+import mme.cassandraclient.casserole.DefaultConfigChangeListener;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -133,8 +122,17 @@ public class CQLStoreManager extends DistributedStoreManager implements KeyColum
     static final String CONSISTENCY_QUORUM = "QUORUM";
 
     private static final int DEFAULT_PORT = 9042;
+    private static final int BASE_DELAY_MS = 1000;
+    private static final int MAX_DELAY_MS = 60000;
 
     private final String keyspace;
+    private final String casserole;
+    private final String dataCenter;
+    private final String clusterName;
+    private final String appName;
+//    private final String keyStoreLocation;
+//    private final String keyStorePwd;
+
     private final int batchSize;
     private final boolean atomicBatch;
     private final boolean allowCompactStorage;
@@ -149,6 +147,8 @@ public class CQLStoreManager extends DistributedStoreManager implements KeyColum
     private final Map<String, CQLKeyColumnValueStore> openStores;
     private final Deployment deployment;
 
+    private final List<String> nodes;
+
     /**
      * Constructor for the {@link CQLStoreManager} given a JanusGraph {@link Configuration}.
      * @param configuration
@@ -157,9 +157,13 @@ public class CQLStoreManager extends DistributedStoreManager implements KeyColum
     public CQLStoreManager(final Configuration configuration) throws BackendException {
         super(configuration, DEFAULT_PORT);
         this.keyspace = determineKeyspaceName(configuration);
+        this.appName = configuration.get(APP_NAME);
+        this.clusterName = configuration.get(CLUSTER_NAME);
+        this.casserole = configuration.get(CASSEROLE);
+        this.dataCenter = configuration.get(LOCAL_DATACENTER);
         this.batchSize = configuration.get(BATCH_STATEMENT_SIZE);
         this.atomicBatch = configuration.get(ATOMIC_BATCH_MUTATE);
-
+        this.nodes = Arrays.asList(configuration.get(GraphDatabaseConfiguration.STORAGE_HOSTS));
         this.executorService = new ThreadPoolExecutor(10,
                 100,
                 1,
@@ -169,6 +173,28 @@ public class CQLStoreManager extends DistributedStoreManager implements KeyColum
                         .setDaemon(true)
                         .setNameFormat("CQLStoreManager[%02d]")
                         .build());
+//        System.out.println("Keystore loc:" + keyStoreLocation);
+
+
+        LOGGER.info("ACICQL config setup");
+        LOGGER.info("keyspace: "+keyspace);
+        LOGGER.info("appName: "+appName);
+        LOGGER.info("clusterName: "+clusterName);
+        LOGGER.info("casserole: "+casserole);
+        LOGGER.info("dataCenter: "+dataCenter);
+        LOGGER.info("batchSize: "+batchSize);
+        LOGGER.info("nodes: "+GraphDatabaseConfiguration.STORAGE_HOSTS);
+
+
+        System.out.println("ACICQL config setup");
+        System.out.println("keyspace: "+keyspace);
+        System.out.println("appName: "+appName);
+        System.out.println("clusterName: "+clusterName);
+        System.out.println("casserole: "+casserole);
+        System.out.println("dataCenter: "+dataCenter);
+        System.out.println("batchSize: "+batchSize);
+        System.out.println("nodes: "+GraphDatabaseConfiguration.STORAGE_HOSTS);
+
 
         this.cluster = initializeCluster();
         this.session = initializeSession(this.keyspace);
@@ -221,7 +247,10 @@ public class CQLStoreManager extends DistributedStoreManager implements KeyColum
         this.openStores = new ConcurrentHashMap<>();
     }
 
-    Cluster initializeCluster() throws PermanentBackendException {
+    Cluster initializeCluster() {
+        return defaultClusterBuilder(casserole, dataCenter, appName, clusterName, port, keyspace, true, "LOCAL_QUORUM");
+    }
+    /*Cluster initializeCluster() throws PermanentBackendException {
         final Configuration configuration = getStorageConfig();
 
         final List<InetSocketAddress> contactPoints;
@@ -296,7 +325,7 @@ public class CQLStoreManager extends DistributedStoreManager implements KeyColum
                     configuration.get(REMOTE_CORE_CONNECTIONS_PER_HOST),
                     configuration.get(REMOTE_MAX_CONNECTIONS_PER_HOST));
         return builder.withPoolingOptions(poolingOptions).build();
-    }
+    }*/
 
     Session initializeSession(final String keyspaceName) {
         final Session s = this.cluster.connect();
@@ -322,6 +351,41 @@ public class CQLStoreManager extends DistributedStoreManager implements KeyColum
                 .with()
                 .replication(replication));
         return s;
+    }
+
+    private CassandraCluster defaultClusterBuilder(final String casseroleURL, final String dataCenter, final String appScope, final String clusterName,
+                final int port, final String keyspace, final boolean useSSL,
+                final String consistencyLevel) {
+        final SocketOptions socketOptions = new SocketOptions();
+        socketOptions.setKeepAlive(true);
+        final CassandraCluster.Builder builder = CassandraCluster.builder().withApplication(appScope).withClusterName(clusterName).withPort(port)
+                    .withCompression(ProtocolOptions.Compression.LZ4).withSocketOptions(socketOptions)
+                    .withReconnectionPolicy(new ExponentialReconnectionPolicy(BASE_DELAY_MS, MAX_DELAY_MS))
+                    .withSpeculativeExecutionPolicy(new ConstantSpeculativeExecutionPolicy(500, 2));
+        builder.withQueryOptions(
+                    builder.getConfiguration().getQueryOptions().setDefaultIdempotence(true).setConsistencyLevel(ConsistencyLevel.valueOf(consistencyLevel)));
+        if (StringUtils.isEmpty(casseroleURL) || "none".equals(casseroleURL)) {
+            builder.withContactPointsLocator(new LocalContactPointsLocator(nodes));
+        }
+        else {
+            final ConfigChangeListener changeListener = new DefaultConfigChangeListener();
+            final CasseroleOptions casseroleOptions = new CasseroleOptions();
+            casseroleOptions.setCasseroleURI(casseroleURL);
+            final ConfigProvider configProvider = casseroleOptions.makeClient();
+            builder.withCasseroleOptions(casseroleOptions)
+                        .withLoadBalancingPolicy(new TokenAwarePolicy(new CasserolePolicy(configProvider, changeListener, casseroleOptions)));
+        }
+        if (dataCenter != null) {
+            builder.withDataCenter(dataCenter);
+        }
+        if ((username != null) && (password != null)) {
+            final PlainTextAuthProvider authProvider = new PlainTextAuthProvider(username, password);
+            builder.withAuthProvider(authProvider);
+        }
+//        if (useSSL) {
+//            builder.withSSL(keyStoreLocation, keyStorePwd);
+//        }
+        return builder.build();
     }
 
     boolean initializeCompactStorage() throws PermanentBackendException {

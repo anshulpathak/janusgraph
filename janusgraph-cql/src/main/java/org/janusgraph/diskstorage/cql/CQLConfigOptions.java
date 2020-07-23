@@ -241,11 +241,44 @@ public interface CQLConfigOptions {
 
     // Other options
     ConfigOption<String> CLUSTER_NAME = new ConfigOption<>(
-            CQL_NS,
-            "cluster-name",
-            "Default name for the Cassandra cluster",
-            ConfigOption.Type.MASKABLE,
-            "JanusGraph Cluster");
+                CQL_NS,
+                "cluster-name",
+                "Default name for the Cassandra cluster",
+                ConfigOption.Type.MASKABLE,
+                "JanusGraph Cluster");
+
+    ConfigOption<String> APP_NAME = new ConfigOption<>(
+                CQL_NS,
+                "app-name",
+                "Default name for the Cassandra cluster",
+                ConfigOption.Type.MASKABLE,
+                "JanusGraph Cluster");
+
+    ConfigOption<Integer> PORT = new ConfigOption<>(
+                CQL_NS,
+                "port",
+                "Cassandra port",
+                ConfigOption.Type.FIXED,
+                Integer.class);
+
+    ConfigOption<String> CASSEROLE = new ConfigOption<>(
+                CQL_NS,
+                "casserole",
+                "Cassandra casserole",
+                ConfigOption.Type.LOCAL,
+                String.class);
+    ConfigOption<String> USER_NAME = new ConfigOption<>(
+                CQL_NS,
+                "user",
+                "Cassandra casserole",
+                ConfigOption.Type.FIXED,
+                String.class);
+    ConfigOption<String> PWD = new ConfigOption<>(
+                CQL_NS,
+                "pwd",
+                "Cassandra casserole",
+                ConfigOption.Type.FIXED,
+                String.class);
 
     ConfigOption<String> LOCAL_DATACENTER = new ConfigOption<>(
             CQL_NS,
